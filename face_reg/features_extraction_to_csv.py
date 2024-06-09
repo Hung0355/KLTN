@@ -8,8 +8,8 @@ import logging
 import cv2
 
 #  Path of cropped faces
-path_images_from_camera = "train_dataset/pack3/"
-#path_images_from_camera = "D:/Anaconda/105_classes_pins_dataset/"
+#path_images_from_camera = "train_dataset/pack1/"
+path_images_from_camera = "D:/Anaconda/Face-Recognition-Based-Attendance-System/data/data_faces_from_camera/"
 #  Use frontal face detector of Dlib
 detector = dlib.get_frontal_face_detector()
 

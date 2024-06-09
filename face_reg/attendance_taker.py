@@ -7,7 +7,14 @@ import time
 import logging
 import sqlite3
 import datetime
+import mediapipe as mp
+import threading
+import tensorflow as tf
+import mysql.connector
+import wx
 
+ROOM = 'A100'
+SEAT = 'A2'
 
 # Dlib  / Use frontal face detector of Dlib
 detector = dlib.get_frontal_face_detector()
@@ -33,6 +40,91 @@ cursor.execute(create_table_sql)
 conn.commit()
 conn.close()
 
+label = "Waiting...."
+n_time_steps = 10
+
+mpPose = mp.solutions.pose
+pose = mpPose.Pose()
+mpDraw = mp.solutions.drawing_utils
+
+model = tf.keras.models.load_model("model.h5")
+
+def Get_Mysql(room,seat):
+    cnx = mysql.connector.connect(
+    host='103.241.43.129',    # Địa chỉ máy chủ MySQL
+    user='hung', # Tên đăng nhập
+    password='0355', # Mật khẩu
+    database='exam', # Tên cơ sở dữ liệu
+    ssl_disabled=True,  # Disable SSL
+    use_pure=True
+    )
+    # Tạo một đối tượng cursor
+    cursor = cnx.cursor()
+    # Thực hiện truy vấn
+    query = f"SELECT uid FROM `{room}` WHERE seat = %s"
+    cursor.execute(query,(seat,))
+
+    results = cursor.fetchone()
+    return results[0]
+
+def show_message():
+    app = wx.App(False)
+    wx.MessageBox('Cheating detect!', 'Warning', wx.OK | wx.ICON_INFORMATION)
+
+def make_landmark_timestep(results):
+    c_lm = []
+    face_landmarks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    for id in face_landmarks:
+        lm = results.pose_landmarks.landmark[id]
+        c_lm.append(lm.x)
+        c_lm.append(lm.y)
+        c_lm.append(lm.z)
+        c_lm.append(lm.visibility)
+    return c_lm
+
+
+def draw_landmark_on_image(mpDraw, results, img):
+    # Vẽ các đường nối
+    mpDraw.draw_landmarks(img, results.pose_landmarks, mpPose.POSE_CONNECTIONS)
+
+    # Vẽ các điểm nút của khuôn mặt
+    face_landmarks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    for id in face_landmarks:
+        lm = results.pose_landmarks.landmark[id]
+        h, w, c = img.shape
+        cx, cy = int(lm.x * w), int(lm.y * h)
+        cv2.circle(img, (cx, cy), 10, (0, 0, 255), cv2.FILLED)
+    return img
+
+def draw_class_on_image(label, img):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    bottomLeftCornerOfText = (10, 30)
+    fontScale = 1
+    fontColor = (0, 255, 0)
+    thickness = 2
+    lineType = 2
+    cv2.putText(img, label,
+                bottomLeftCornerOfText,
+                font,
+                fontScale,
+                fontColor,
+                thickness,
+                lineType)
+    return img
+
+def detect(model, lm_list):
+    global label
+    lm_list = np.array(lm_list)
+    lm_list = np.expand_dims(lm_list, axis=0)
+    print(lm_list.shape)
+    results = model.predict(lm_list)
+    print(results)
+    if results[0][0] > 0.5:
+        label = "NONE"
+    else:
+        label = "CHEAT"
+        show_message()
+    return label
 
 class Face_Recognizer:
     def __init__(self):
@@ -176,8 +268,11 @@ class Face_Recognizer:
         conn.close()
 
     #  Face detection and recognition wit OT from input video stream
-    def process(self, stream):
+    def process1(self, stream):
         # 1.  Get faces known from "features.all.csv"
+        lm_list = []
+        key = 0
+        uid = Get_Mysql(ROOM,SEAT)
         if self.get_face_database():
             while stream.isOpened():
                 self.frame_cnt += 1
@@ -217,10 +312,10 @@ class Face_Recognizer:
                                 [int(faces[k].left() + faces[k].right()) / 2,
                                  int(faces[k].top() + faces[k].bottom()) / 2])
 
-                            img_rd = cv2.rectangle(img_rd,
-                                                   tuple([d.left(), d.top()]),
-                                                   tuple([d.right(), d.bottom()]),
-                                                   (255, 255, 255), 2)
+                            # img_rd = cv2.rectangle(img_rd,
+                            #                        tuple([d.left(), d.top()]),
+                            #                        tuple([d.right(), d.bottom()]),
+                            #                        (255, 255, 255), 2)
 
                     #  Multi-faces in current frame, use centroid-tracker to track
                     if self.current_frame_face_cnt != 1:
@@ -231,7 +326,22 @@ class Face_Recognizer:
                         img_rd = cv2.putText(img_rd, self.current_frame_face_name_list[i],
                                              self.current_frame_face_position_list[i], self.font, 0.8, (0, 255, 255), 1,
                                              cv2.LINE_AA)
-                    self.draw_note(img_rd)
+                    #self.draw_note(img_rd)
+                    if key == 1:
+                        imgRGB = cv2.cvtColor(img_rd, cv2.COLOR_BGR2RGB)
+                        results = pose.process(imgRGB)
+                        if results.pose_landmarks:
+                            c_lm = make_landmark_timestep(results)
+                            lm_list.append(c_lm)
+                        if len(lm_list) == n_time_steps:
+                            # predict
+                            t1 = threading.Thread(target=detect, args=(model, lm_list,))
+                            t1.start()
+                            lm_list = []
+
+                        img_rd = draw_landmark_on_image(mpDraw, results, img_rd)
+
+                        img_rd = draw_class_on_image(label, img_rd)
 
                 # 6.2  If cnt of faces changes, 0->1 or 1->0 or ...
                 else:
@@ -296,13 +406,18 @@ class Face_Recognizer:
                                 nam =self.face_name_known_list[similar_person_num]
 
                                 print(type(self.face_name_known_list[similar_person_num]))
-                                print(nam)
+                                #print(nam)
+                                if nam == uid:
+                                    key = 1
+                                else:
+                                    key = 0
+                                    lm_list = []
                                 self.attendance(nam)
                             else:
                                 logging.debug("  Face recognition result: Unknown person")
 
                         # 7.  / Add note on cv2 window
-                        self.draw_note(img_rd)
+                        #self.draw_note(img_rd)
 
                 # 8.  'q'  / Press 'q' to exit
                 if kk == ord('q'):
@@ -320,7 +435,7 @@ class Face_Recognizer:
     def run(self):
         # cap = cv2.VideoCapture("video.mp4")  # Get video stream from video file
         cap = cv2.VideoCapture(0)              # Get video stream from camera
-        self.process(cap)
+        self.process1(cap)
 
         cap.release()
         cv2.destroyAllWindows()
