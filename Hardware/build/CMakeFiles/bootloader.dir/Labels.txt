@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+D:/ESPSETUP/Project/nodeEsp/build/CMakeFiles/bootloader
+D:/ESPSETUP/Project/nodeEsp/build/CMakeFiles/bootloader.rule
+D:/ESPSETUP/Project/nodeEsp/build/CMakeFiles/bootloader-complete.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+D:/ESPSETUP/Project/nodeEsp/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
