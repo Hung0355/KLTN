@@ -17,7 +17,6 @@ ROOM = 'A101'
 SEAT = '22'
 prev_uid = None
 prev_name = None
-count_cap = 10
 # Dlib  / Use frontal face detector of Dlib
 detector = dlib.get_frontal_face_detector()
 
@@ -76,7 +75,6 @@ def Get_Mysql(room,seat):
         period = 4
     else:
         period = 4  # Nếu không thuộc vào bất kỳ khoảng thời gian nào
-    period = 4
     # Thực hiện truy vấn
     query = f"SELECT UID FROM ExamRooms WHERE seat = %s AND period = %s AND code = %s AND date = %s"
     cursor.execute(query,(seat,period,room,current_date))
@@ -172,9 +170,7 @@ def draw_class_on_image(label, img):
     return img
 
 def detect(model, lm_list,img):
-    global count_cap
     global label
-    count_cap += 1
     lm_list = np.array(lm_list)
     lm_list = np.expand_dims(lm_list, axis=0)
     print(lm_list.shape)
@@ -184,10 +180,8 @@ def detect(model, lm_list,img):
         label = "NONE"
     else:
         label = "CHEAT"
-        # if count_cap > 10:
         show_message()
         Capture(img)
-        count_cap = 0
     return label
 
 class Face_Recognizer:
